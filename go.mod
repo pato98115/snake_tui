@@ -1,5 +1,3 @@
-module games/snake_tui
+module github.com/pato98115/snake_tui
 
 go 1.18
-
-require github.com/gammazero/deque v0.2.0
