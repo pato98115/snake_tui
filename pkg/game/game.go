@@ -1,60 +1,100 @@
 package game
 
-import "github.com/gammazero/deque"
+import (
+	"fmt"
 
-const (
-	defaultRows = 40
-	defaultCols = 40
+	deque "github.com/pato98115/snake_tui/pkg/deque"
 )
 
+// Snake direction in board
+type direction byte
+
+// Cell for composing snake's body
 type cell struct {
-	x int
-	y int
+	x uint
+	y uint
 }
 
+// Snake
 type snake struct {
-	food int
-	body *deque.Deque[cell]
+	food uint
+	body *deque.Deque
 }
 
-func (s *snake) move(c cell) {
-	s.body.PushBack(c)
+// Snake's food
+type food struct {
+	cell     *cell
+	quantity uint
+}
+
+// Matrix like board
+type board struct {
+	rows uint
+	cols uint
+}
+
+// Game
+type Game struct {
+	snake     snake
+	snake_dir direction
+	food      []food
+	board     board
+	points    uint
+}
+
+const (
+	defaultRows uint = 40
+	defaultCols uint = 40
+
+	snakeStartSize uint = 3
+
+	dirUp direction = iota
+	dirDown
+	dirLeft
+	dirRight
+)
+
+// Compare two cells
+func (c *cell) equals(c2 *cell) bool {
+	return (c.x == c2.x && c.y == c2.y)
+}
+
+func (s *snake) move(c *cell) {
+	s.body.PushFront(c)
 	// has food inside to grow?
 	if s.food > 0 {
 		s.food -= 1
 	} else {
-		s.body.PopFront()
+		s.body.PopBack()
 	}
 }
 
-type food struct {
-	cell
-	quantity int
+func (s *snake) getHead() *cell {
+	v := s.body.Front().Value
+	return v.(*cell)
 }
 
-type board struct {
-	rows int
-	cols int
+func (s *snake) eat(f food) error {
+	if !s.getHead().equals(f.cell) {
+		return fmt.Errorf("ERROR: Snake can't reach that")
+	}
+	s.food += f.quantity
+	return nil
 }
 
-type game struct {
-	snake  snake
-	food   []food
-	board  board
-	points int
-}
-
-func newGame() *game {
-	return &game{
-		snake: snake{
-			food: 0,
-			body: deque.New[cell](),
-		},
-		food: []food{},
-		board: board{
-			rows: defaultRows,
-			cols: defaultCols,
-		},
-		points: 0,
+func (g *Game) changeDir(d direction) {
+	// only change direction when it's a valid one
+	// depending on current direction
+	switch d {
+	case dirUp, dirDown:
+		switch g.snake_dir {
+		case dirLeft, dirRight:
+			g.snake_dir = d
+		}
+	case dirLeft, dirRight:
+		switch g.snake_dir {
+		case dirUp, dirDown:
+			g.snake_dir = d
+		}
 	}
 }
