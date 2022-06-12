@@ -9,6 +9,10 @@ type Deque struct {
 	*list.List
 }
 
+func New() *Deque {
+	return &Deque{list.New()}
+}
+
 // Remove de Element in the Front of the Deque and returns it's value
 func (q *Deque) PopFront() any {
 	return q.Remove(q.Front())
