@@ -48,8 +48,8 @@ type Game struct {
 }
 
 const (
-	defaultRows uint = 40
-	defaultCols uint = 40
+	defaultRows uint = 10
+	defaultCols uint = 10
 
 	snakeStartSize uint = 3
 
@@ -91,7 +91,7 @@ func (s *snake) eat(f *food) error {
 	return nil
 }
 
-func RandFood(coln, rown, quantityn uint) *food {
+func randFood(coln, rown, quantityn uint) *food {
 	return &food{
 		cell: &cell{
 			x: uint(rand.Intn(int(coln))),
@@ -121,8 +121,22 @@ func New() *Game {
 	snake.body.PushFront(&cell{0, 1})
 	snake.body.PushFront(&cell{0, 2})
 
+	board := &Board{
+		Cols:  defaultCols,
+		Rows:  defaultRows,
+		cells: make([]CellType, defaultCols*defaultRows),
+	}
+
+	food := deque.New()
+	food.PushFront(randFood(board.Cols, board.Rows, 4))
+
 	return &Game{
-		snake: snake,
+		snake:    snake,
+		snakeDir: Right,
+		food:     food,
+		running:  true,
+		Board:    *board,
+		Points:   0,
 	}
 }
 
@@ -143,27 +157,46 @@ func (g *Game) ChangeDir(d Direction) {
 	}
 }
 
+func (g *Game) validMove(next *cell) bool {
+	// check collisions with borders.
+	// using uint 0 - 1 = max uint for easier check.
+	if next.x > g.Board.Cols || next.y > g.Board.Rows {
+		return false
+	}
+	// check collisions with snake body.
+	for e := g.snake.body.Front().Next(); e != nil; e = e.Next() {
+		c := e.Value.(*cell)
+		if next.equals(c) {
+			return false
+		}
+	}
+	return true
+}
+
 func (g *Game) Step() bool {
+	if !g.running {
+		return false
+	}
+
 	// gen next cell for snake
 	nextCell := cell{}
 	snakeHead := g.snake.getHead()
 	switch g.snakeDir {
 	case Up:
 		nextCell.x = snakeHead.x
-		nextCell.y = snakeHead.y + 1
-	case Right:
-		nextCell.x = snakeHead.x + 1
-		nextCell.y = snakeHead.y
-	case Down:
-		nextCell.x = snakeHead.x
 		nextCell.y = snakeHead.y - 1
 	case Left:
 		nextCell.x = snakeHead.x - 1
 		nextCell.y = snakeHead.y
+	case Down:
+		nextCell.x = snakeHead.x
+		nextCell.y = snakeHead.y + 1
+	case Right:
+		nextCell.x = snakeHead.x + 1
+		nextCell.y = snakeHead.y
 	}
 
-	// using uint 0 - 1 = max uint for easier check
-	if nextCell.x > g.Board.Cols || nextCell.y > g.Board.Rows {
+	if !g.validMove(&nextCell) {
 		g.running = false
 		return g.running
 	}
@@ -175,7 +208,7 @@ func (g *Game) Step() bool {
 			g.Points += f.quantity
 			g.food.Remove(e)
 			// Spawn new food
-			g.food.PushFront(&food{})
+			g.food.PushFront(randFood(g.Board.Cols, g.Board.Rows, 4))
 
 			break
 		}
@@ -187,24 +220,27 @@ func (g *Game) Step() bool {
 }
 
 func (g *Game) Represent() []CellType {
+	rows := g.Board.Rows
+	cols := g.Board.Cols
+
 	// set background
-	for i := uint(0); i < g.Board.Rows; i++ {
-		for j := uint(0); j < g.Board.Cols; j++ {
-			g.Board.cells[i+j] = BackgroundCell
+	for i := uint(0); i < rows; i++ {
+		for j := uint(0); j < cols; j++ {
+			g.Board.cells[(i*cols)+j] = BackgroundCell
 		}
 	}
 	// set food
 	for e := g.food.Front(); e != nil; e = e.Next() {
 		f := e.Value.(*food)
-		g.Board.cells[f.cell.x+f.cell.y] = foodType(f)
+		g.Board.cells[(f.cell.y*cols)+f.cell.x] = foodType(f)
 	}
 	// set snake head
 	h := g.snake.getHead()
-	g.Board.cells[h.x+h.y] = SnakeHeadCell
+	g.Board.cells[(h.y*cols)+h.x] = SnakeHeadCell
 
 	for e := g.snake.body.Front().Next(); e != nil; e = e.Next() {
 		c := e.Value.(*cell)
-		g.Board.cells[c.x+c.y] = SnakeBodyCell
+		g.Board.cells[(c.y*cols)+c.x] = SnakeBodyCell
 	}
 
 	return g.Board.cells
