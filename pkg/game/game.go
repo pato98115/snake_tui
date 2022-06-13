@@ -48,8 +48,8 @@ type Game struct {
 }
 
 const (
-	defaultRows uint = 10
-	defaultCols uint = 10
+	defaultRows uint = 20
+	defaultCols uint = 20
 
 	snakeStartSize uint = 3
 
