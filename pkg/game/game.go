@@ -160,7 +160,7 @@ func (g *Game) ChangeDir(d Direction) {
 func (g *Game) validMove(next *cell) bool {
 	// check collisions with borders.
 	// using uint 0 - 1 = max uint for easier check.
-	if next.x > g.Board.Cols || next.y > g.Board.Rows {
+	if next.x >= g.Board.Cols || next.y >= g.Board.Rows {
 		return false
 	}
 	// check collisions with snake body.

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	game "github.com/pato98115/snake_tui/pkg/game"
@@ -12,7 +14,7 @@ import (
 // "██"
 
 const (
-	backgroundStr string = "██"
+	backgroundStr string = "  "
 	food1Str      string = "██"
 	food2Str      string = "██"
 	food3Str      string = "██"
@@ -28,7 +30,13 @@ const (
 )
 
 var baseStyle = lipgloss.NewStyle().
-	Bold(true).UnsetAlign().UnsetMargins().UnsetPadding()
+	Bold(true).
+	UnsetAlign().
+	UnsetMargins().
+	UnsetPadding()
+
+var boderStyle = lipgloss.NewStyle().
+	Border(lipgloss.DoubleBorder(), true)
 
 func strCellType(cell game.CellType) (string, error) {
 	var strCell, strColor string
@@ -78,9 +86,62 @@ func strReprBoard(cols, rows uint, cells []game.CellType) (string, error) {
 
 type tickMsg struct{}
 
+type keyMap struct {
+	Up    key.Binding
+	Right key.Binding
+	Down  key.Binding
+	Left  key.Binding
+	Help  key.Binding
+	Quit  key.Binding
+}
+
+// ShortHelp returns keybindings to be shown in the mini help view. It's part
+// of the keyMap interface.
+func (k keyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Help, k.Quit}
+}
+
+// FullHelp returns keybindings for the expanded help view. It's part of the
+// keyMap interface.
+func (k keyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Up, k.Down, k.Left, k.Right}, // first column
+		{k.Help, k.Quit},                // second column
+	}
+}
+
 type model struct {
 	game     *game.Game
 	stepTime time.Duration
+	keys     *keyMap
+	help     help.Model
+}
+
+var defaultKeyMap = keyMap{
+	Up: key.NewBinding(
+		key.WithKeys("up", "w"),
+		key.WithHelp("↑/w", "move up "),
+	),
+	Down: key.NewBinding(
+		key.WithKeys("down", "s"),
+		key.WithHelp("↓/s", "move down "),
+	),
+	Left: key.NewBinding(
+		key.WithKeys("left", "a"),
+		key.WithHelp("←/a", "move left "),
+	),
+	Right: key.NewBinding(
+		key.WithKeys("right", "d"),
+		key.WithHelp("→/d", "move right "),
+	),
+	Help: key.NewBinding(
+		key.WithKeys("?"),
+		key.WithHelp("?", "toggle help "),
+	),
+	Quit: key.NewBinding(
+		key.WithKeys("q", "esc", "ctrl+c"),
+		key.WithHelp("q", "quit "),
+	),
 }
 
 func tick(d time.Duration) tea.Cmd {
@@ -94,27 +155,28 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Make sure these keys always quit
-	if msg, ok := msg.(tea.KeyMsg); ok {
-		k := msg.String()
-		if k == "q" || k == "esc" || k == "ctrl+c" {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		// If we set a width on the help menu it can it can gracefully truncate
+		// its view as needed.
+		m.help.Width = msg.Width
+
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, m.keys.Up):
+			m.game.ChangeDir(game.Up)
+		case key.Matches(msg, m.keys.Down):
+			m.game.ChangeDir(game.Down)
+		case key.Matches(msg, m.keys.Left):
+			m.game.ChangeDir(game.Left)
+		case key.Matches(msg, m.keys.Right):
+			m.game.ChangeDir(game.Right)
+		case key.Matches(msg, m.keys.Help):
+			m.help.ShowAll = !m.help.ShowAll
+		case key.Matches(msg, m.keys.Quit):
 			return m, tea.Quit
 		}
-	}
 
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "w": // up
-			m.game.ChangeDir(game.Up)
-		case "d": // right
-			m.game.ChangeDir(game.Right)
-		case "s": // down
-			m.game.ChangeDir(game.Down)
-		case "a": // left
-			m.game.ChangeDir(game.Left)
-		}
-		return m, nil
 	case tickMsg:
 		running := m.game.Step()
 		if !running {
@@ -144,13 +206,18 @@ func (m model) View() string {
 		fmt.Printf("Error: %v", err)
 	}
 
-	return strRepr
+	helpView := m.help.View(m.keys)
+
+	pointsRepr := fmt.Sprintf("Points: %d", m.game.Points)
+
+	return boderStyle.Render(strRepr+pointsRepr) + "\n" + helpView
 }
 
 func main() {
 	initialModel := model{
 		game:     game.New(),
-		stepTime: time.Second / 2,
+		stepTime: time.Second / 3,
+		keys:     &defaultKeyMap,
 	}
 
 	p := tea.NewProgram(initialModel)
